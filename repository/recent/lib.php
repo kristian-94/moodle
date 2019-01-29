@@ -68,18 +68,18 @@ class repository_recent extends repository {
         // Ignore all file references.
         $sql = 'SELECT files1.*
                   FROM {files} files1
-             LEFT JOIN {files_reference} r
-                       ON files1.referencefileid = r.id
                   JOIN (
-                      SELECT contenthash, filename, MAX(id) AS id
+                      SELECT referencefileid, MAX(id) AS id
                         FROM {files}
                        WHERE userid = :userid
                          AND filename != :filename
                          AND ((filearea = :filearea1 AND itemid = :itemid) OR filearea != :filearea2)
-                    GROUP BY contenthash, filename
+                    GROUP BY contenthash, filename, referencefileid
                   ) files2 ON files1.id = files2.id
+             LEFT JOIN {files_reference} r
+                       ON files2.referencefileid = r.id
                  WHERE r.repositoryid is NULL
-              ORDER BY files1.timemodified DESC';
+              ORDER BY files1.timemodified DESC, files1.id';
         $params = array(
             'userid' => $USER->id,
             'filename' => '.',
