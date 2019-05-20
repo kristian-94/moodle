@@ -3078,5 +3078,17 @@ function xmldb_main_upgrade($oldversion) {
         upgrade_main_savepoint(true, 2018120303.16);
     }
 
+    if ($oldversion < 2019052700) {
+
+        $table = new xmldb_table('files');
+        $index = new xmldb_index('timemodified', XMLDB_INDEX_NOTUNIQUE, array('timemodified'));
+
+        if (!$dbman->index_exists($table, $index)) {
+            $dbman->add_index($table, $index);
+        }
+
+        upgrade_plugin_savepoint(true, 2019052700, 'repository', 'recent');
+    }
+
     return true;
 }
