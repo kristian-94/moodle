@@ -2531,6 +2531,7 @@
         <INDEX NAME="component-filearea-contextid-itemid" UNIQUE="false" FIELDS="component, filearea, contextid, itemid"/>
         <INDEX NAME="contenthash" UNIQUE="false" FIELDS="contenthash"/>
         <INDEX NAME="pathnamehash" UNIQUE="true" FIELDS="pathnamehash"/>
+        <INDEX NAME="timemodified" UNIQUE="false" FIELDS="timemodified"/>
       </INDEXES>
     </TABLE>
     <TABLE NAME="files_reference" COMMENT="Store files references">
