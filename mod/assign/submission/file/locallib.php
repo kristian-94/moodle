@@ -320,6 +320,12 @@ class assign_submission_file extends assign_submission_plugin {
                                'assignsubmission_file',
                                ASSIGNSUBMISSION_FILE_FILEAREA,
                                $submission->id);
+
+        global $DB;
+        $currentsubmission = $DB->get_record('assignsubmission_file', ['submission' => $submission->id]);
+        $currentsubmission->numfiles = 0;
+        $DB->update_record('assignsubmission_file', $currentsubmission);
+
         return true;
     }
 
