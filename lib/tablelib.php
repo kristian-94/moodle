@@ -471,7 +471,7 @@ class flexible_table {
         }
 
         // Load any existing user preferences.
-        if ($this->persistent) {
+        if ($this->persistent && !($this instanceof assign_grading_table)) {
             $this->prefs = json_decode(get_user_preferences('flextable_' . $this->uniqueid), true);
             $oldprefs = $this->prefs;
         } else if (isset($SESSION->flextable[$this->uniqueid])) {
