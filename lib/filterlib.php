@@ -1008,6 +1008,12 @@ function filter_get_active_in_context($context) {
             array_key_exists($context->id, $FILTERLIB_PRIVATE->active)) {
         return $FILTERLIB_PRIVATE->active[$context->id];
     }
+    // Try to get the active filters from the cache first.
+    $cache = cache::make('core', 'filters_active');
+    $filters = $cache->get($context);
+    if ($filters) {
+        return $filters;
+    }
 
     $contextids = str_replace('/', ',', trim($context->path, '/'));
 
@@ -1038,6 +1044,8 @@ function filter_get_active_in_context($context) {
 
     $rs->close();
 
+    // Cache these filters to be used for next time we fetch filters for this context.
+    $cache->set($context, $filters);
     return $filters;
 }
 
