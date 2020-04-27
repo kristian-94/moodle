@@ -886,6 +886,7 @@ function filter_set_local_state($filter, $contextid, $state) {
                 'with $contextid equal to the system context id.');
     }
 
+    filter_invalidate_local_cache($contextid);
     if ($state == TEXTFILTER_INHERIT) {
         $DB->delete_records('filter_active', array('filter' => $filter, 'contextid' => $contextid));
         return;
@@ -936,6 +937,7 @@ function filter_set_local_config($filter, $contextid, $name, $value) {
     } else {
         $DB->update_record('filter_config', $rec);
     }
+    filter_invalidate_local_cache($contextid);
 }
 
 /**
@@ -948,6 +950,16 @@ function filter_set_local_config($filter, $contextid, $name, $value) {
 function filter_unset_local_config($filter, $contextid, $name) {
     global $DB;
     $DB->delete_records('filter_config', array('filter' => $filter, 'contextid' => $contextid, 'name' => $name));
+    filter_invalidate_local_cache($contextid);
+}
+/**
+ * Invalidate a particular local config cache because we updated it.
+ *
+ * @param integer $contextid The id of the context to clear the cache for.
+ */
+function filter_invalidate_local_cache($contextid) {
+    $cache = cache::make('core', 'filters_active');
+    $cache->purge();
 }
 
 /**
@@ -1008,6 +1020,25 @@ function filter_get_active_in_context($context) {
             array_key_exists($context->id, $FILTERLIB_PRIVATE->active)) {
         return $FILTERLIB_PRIVATE->active[$context->id];
     }
+    // Try to get the active filters from the cache first.
+    $cache = cache::make('core', 'filters_active');
+    $coursecontext = $context->get_course_context(false);
+    // First check the filter cache at this context level in case we have local configuration.
+    if ($cachedfilters = $cache->get($context->id)) {
+        $cachedfilters = $cache->get($context->id);
+    }
+    // Go up to the course context and check if we have active filters cached there.
+    if ($coursecontext && $cachedfilters === false) {
+        $cachedfilters = $cache->get($coursecontext->instanceid);
+    }
+    // Check if we have filters cached at the system context.
+    if ($context instanceof context_system && $cachedfilters === false) {
+        $cachedfilters = $cache->get('context_system');
+    } 
+    if ($cachedfilters !== false ) {
+        // We found some cached filters so return early.
+        return $cachedfilters;
+    }
 
     $contextids = str_replace('/', ',', trim($context->path, '/'));
 
@@ -1038,6 +1069,25 @@ function filter_get_active_in_context($context) {
 
     $rs->close();
 
+    // Check if any filters have local configuration, if so we cache at the context level.
+    // If not we can cache at the course level. 
+    $allfilters = filter_get_globally_enabled(); // The result of this function already gets cached.
+    $anylocal = false;
+    foreach ($allfilters as $filter) {
+        if (filter_has_local_settings($filter)) {
+            // This means our list of active filters could be different in every context. Have to cache at activity level.
+            $anylocal = true;
+        }
+    }
+    if (filter_context_may_have_filter_settings($context) && $anylocal === true) {
+        // We need to cache this context specifically.
+        $cache->set($context->id, $filters);
+    }
+    if ($coursecontext) {
+        $cache->set($coursecontext->instanceid, $filters);
+    } else if ($context instanceof context_system) {
+        $cache->set('context_system', $filters);
+    }
     return $filters;
 }
 

@@ -1393,6 +1393,10 @@ function reset_text_filters_cache($phpunitreset = false) {
         return;
     }
 
+    // Remove active filter cache.
+    $cache = cache::make('core', 'filters_active');
+    $cache->purge();
+
     // The purge_all_caches() deals with cachedir and localcachedir purging,
     // the individual filter caches are invalidated as necessary elsewhere.
 
