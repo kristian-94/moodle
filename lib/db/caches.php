@@ -469,4 +469,9 @@ $definitions = array(
         'simplekeys' => false,
         'simpledata' => false
     ],
+
+    // Caches active filters.
+    'filters_active' => array(
+        'mode' => cache_store::MODE_APPLICATION,
+    ),
 );

@@ -581,6 +581,7 @@ function filter_get_all_installed() {
  */
 function filter_set_global_state($filtername, $state, $move = 0) {
     global $DB;
+    $cache = cache::make('core', 'filters_active');
 
     // Check requested state is valid.
     if (!in_array($state, array(TEXTFILTER_ON, TEXTFILTER_OFF, TEXTFILTER_DISABLED))) {
@@ -707,6 +708,25 @@ function filter_set_global_state($filtername, $state, $move = 0) {
     }
 
     $transaction->allow_commit();
+
+    // Now add this to our site level filter caches as well.
+    $cachedfilters = $cache->get($syscontext->id);
+    // When we set something at the site level, do we have to invalidate all the other contexts?
+    $cache->purge();
+
+    if ($filters) {
+        if ($filter->active === TEXTFILTER_OFF || $filter->active === TEXTFILTER_DISABLED) {
+            // Don't set anything for this filter if it's off or disabled.
+            $cachedfilters = [];
+        } else {
+            // Set the filter to have empty config.
+            $cachedfilters[$filtername] = [];
+        }
+    }
+    if (!$filters) {
+        $cachedfilters[$filtername] = (array)$filter;
+    }
+    $cache->set($syscontext->id, (array)$cachedfilters);
 }
 
 /**
@@ -874,7 +894,7 @@ function filter_set_applies_to_strings($filter, $applytostrings) {
  */
 function filter_set_local_state($filter, $contextid, $state) {
     global $DB;
-
+    $cache = cache::make('core', 'filters_active');
     // Check requested state is valid.
     if (!in_array($state, array(TEXTFILTER_ON, TEXTFILTER_OFF, TEXTFILTER_INHERIT))) {
         throw new coding_exception("Illegal option '$state' passed to filter_set_local_state. " .
@@ -888,6 +908,7 @@ function filter_set_local_state($filter, $contextid, $state) {
 
     if ($state == TEXTFILTER_INHERIT) {
         $DB->delete_records('filter_active', array('filter' => $filter, 'contextid' => $contextid));
+        $cache->delete($contextid);
         return;
     }
 
@@ -903,10 +924,23 @@ function filter_set_local_state($filter, $contextid, $state) {
     $rec->active = $state;
 
     if ($insert) {
-        $DB->insert_record('filter_active', $rec);
+        $rec->id = $DB->insert_record('filter_active', $rec);
     } else {
         $DB->update_record('filter_active', $rec);
     }
+
+    // Here we need to set our caches too.
+    // What if we have set a local cache at another context level? We might need to purge all other caches for this filter here..
+    $cachedfilters = $cache->get($contextid);
+    $cachedfilters[$filter] = (array)$rec;
+    $systemcontextfilters = $cache->get(context_system::instance()->id);
+
+    if ($state === TEXTFILTER_OFF || (isset($systemcontextfilters[$filter])
+                                      && $systemcontextfilters[$filter] === TEXTFILTER_DISABLED)) {
+        // We want to remove this filters config from the cache.
+        $cachedfilters = [];
+    }
+    $cache->set($contextid, $cachedfilters);
 }
 
 /**
@@ -919,6 +953,7 @@ function filter_set_local_state($filter, $contextid, $state) {
  */
 function filter_set_local_config($filter, $contextid, $name, $value) {
     global $DB;
+    $cache = cache::make('core', 'filters_active');
     $rec = $DB->get_record('filter_config', array('filter' => $filter, 'contextid' => $contextid, 'name' => $name));
     $insert = false;
     if (empty($rec)) {
@@ -936,6 +971,10 @@ function filter_set_local_config($filter, $contextid, $name, $value) {
     } else {
         $DB->update_record('filter_config', $rec);
     }
+    // Add the new config for this filter to the cache item.
+    $cachedfilters = $cache->get($contextid);
+    $cachedfilters[$filter][$name] = $value;
+    $cache->set($contextid, $cachedfilters);
 }
 
 /**
@@ -1011,6 +1050,16 @@ function filter_get_active_in_context($context) {
 
     $contextids = str_replace('/', ',', trim($context->path, '/'));
 
+    // First try to get active filters from the cache.
+    $cache = cache::make('core', 'filters_active');
+    $arrayofcontexts = array_reverse(explode(',', $contextids)); // Need to sort contexts in order.
+    $cachedfiltersarray = $cache->get_many($arrayofcontexts);
+    foreach ($cachedfiltersarray as $cachedfilters) {
+        if ($cachedfilters !== false) {
+            return $cachedfilters;
+        }
+    }
+
     // The following SQL is tricky. It is explained on
     // http://docs.moodle.org/dev/Filter_enable/disable_by_context.
     $sql = "SELECT active.filter, fc.name, fc.value
@@ -1038,6 +1087,8 @@ function filter_get_active_in_context($context) {
 
     $rs->close();
 
+    // Set the cache for active filters after we have grabbed them for this context.
+    $cache->set($context->id, $filters);
     return $filters;
 }
 
