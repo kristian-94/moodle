@@ -707,6 +707,9 @@ function filter_set_global_state($filtername, $state, $move = 0) {
     }
 
     $transaction->allow_commit();
+
+    // We changed something with filters. Purge the cache.
+    filter_purge_active_filters_cache();
 }
 
 /**
@@ -888,6 +891,7 @@ function filter_set_local_state($filter, $contextid, $state) {
 
     if ($state == TEXTFILTER_INHERIT) {
         $DB->delete_records('filter_active', array('filter' => $filter, 'contextid' => $contextid));
+        filter_purge_active_filters_cache();
         return;
     }
 
@@ -907,6 +911,8 @@ function filter_set_local_state($filter, $contextid, $state) {
     } else {
         $DB->update_record('filter_active', $rec);
     }
+    // We changed something with filters. Purge cache.
+    filter_purge_active_filters_cache();
 }
 
 /**
@@ -936,6 +942,8 @@ function filter_set_local_config($filter, $contextid, $name, $value) {
     } else {
         $DB->update_record('filter_config', $rec);
     }
+    // We changed something with filters. Purge cache.
+    filter_purge_active_filters_cache();
 }
 
 /**
@@ -948,6 +956,8 @@ function filter_set_local_config($filter, $contextid, $name, $value) {
 function filter_unset_local_config($filter, $contextid, $name) {
     global $DB;
     $DB->delete_records('filter_config', array('filter' => $filter, 'contextid' => $contextid, 'name' => $name));
+    // We changed something with filters. Purge cache.
+    filter_purge_active_filters_cache();
 }
 
 /**
@@ -984,6 +994,16 @@ function filter_get_all_local_settings($contextid) {
 }
 
 /**
+ * Purge all caches to do with active filters so we fetch them again.
+ * That means we will use the SQL in filter_get_active_in_context()
+ *
+ * @return bool true on success, false otherwise
+ */
+function filter_purge_active_filters_cache() {
+    $cache = cache::make('core', 'filters_active');
+    return $cache->purge();
+}
+/**
  * Get the list of active filters, in the order that they should be used
  * for a particular context, along with any local configuration variables.
  *
@@ -1010,11 +1030,26 @@ function filter_get_active_in_context($context) {
     }
 
     $contextids = str_replace('/', ',', trim($context->path, '/'));
+    $arrayofcontexts = array_reverse(explode(',', $contextids)); // Need to sort contexts in order.
+    // First try to get active filters from the cache.
+    $cache = cache::make('core', 'filters_active');
+    $cachedfiltersarray = $cache->get_many($arrayofcontexts); // Does not come back in correct order.
+    foreach ($arrayofcontexts as $singlecontextid) {
+        $cachedfilters = $cachedfiltersarray[$singlecontextid];
+        if ($cachedfilters === null) {
+           continue; // Filters can be taken from a higher context.
+        }
+        if ($cachedfilters === false) {
+            break; // Then we need to run the sql.
+        } else {
+            return $cachedfilters;
+        }
+    }
 
     // The following SQL is tricky. It is explained on
     // http://docs.moodle.org/dev/Filter_enable/disable_by_context.
-    $sql = "SELECT active.filter, fc.name, fc.value
-         FROM (SELECT f.filter, MAX(f.sortorder) AS sortorder
+    $sql = "SELECT active.filter, fc.name, fc.value, active.depth
+         FROM (SELECT f.filter, MAX(ctx.depth) depth, MAX(f.sortorder) AS sortorder
              FROM {filter_active} f
              JOIN {context} ctx ON f.contextid = ctx.id
              WHERE ctx.id IN ($contextids)
@@ -1027,7 +1062,9 @@ function filter_get_active_in_context($context) {
 
     // Massage the data into the specified format to return.
     $filters = array();
+    $maxdepth = 1;
     foreach ($rs as $row) {
+        (int)$row->depth > $maxdepth ? $maxdepth = (int)$row->depth : null;
         if (!isset($filters[$row->filter])) {
             $filters[$row->filter] = array();
         }
@@ -1038,6 +1075,18 @@ function filter_get_active_in_context($context) {
 
     $rs->close();
 
+    // Set the cache for active filters after we have grabbed them for this context.
+    $numberofcontexts = count($arrayofcontexts);
+    $cachetoset = [];
+    foreach ($arrayofcontexts as $key => $contextid) {
+        // Check in which context we need to actually cache these filters.
+        if ($numberofcontexts - $key === $maxdepth) {
+            $cachetoset[$contextid] = $filters;
+        } else {
+            $cachetoset[$contextid] = null; // Means we don't override at this context.
+        }
+    }
+    $cache->set_many($cachetoset);
     return $filters;
 }
 

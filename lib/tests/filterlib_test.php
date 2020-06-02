@@ -596,9 +596,20 @@ class core_filterlib_testcase extends advanced_testcase {
         $after = $DB->perf_get_reads();
         $this->assertTrue($after > $before);
 
+        // Repeat again and check it doesn't use additional queries.
+        // It should cache active filters in a context during each filter_get_active_in_context() call.
+        $FILTERLIB_PRIVATE = new stdClass;
+        $before = $DB->perf_get_reads();
+        $filterscached1 = filter_get_active_in_context($activity1context);
+        $filterscached2 = filter_get_active_in_context($activity2context);
+        $after = $DB->perf_get_reads();
+        $this->assertEquals($after, $before);
+
         // Check they match.
         $this->assertEquals($plfilters1, $filters1);
+        $this->assertEquals($plfilters1, $filterscached1);
         $this->assertEquals($plfilters2, $filters2);
+        $this->assertEquals($plfilters2, $filterscached2);
     }
 
     public function test_preload() {
