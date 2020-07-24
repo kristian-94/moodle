@@ -139,6 +139,7 @@ class manager {
             new access\defaultuserrole(),
             new access\guestrole(),
             new access\frontpagerole(),
+            new http\httpwebserver(),
         ];
         // Any plugin can add security checks to this report by implementing a callback
         // <component>_security_checks() which returns a check object.
