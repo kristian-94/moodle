@@ -643,7 +643,7 @@ abstract class backup_controller_dbops extends backup_dbops {
                 $setting->set_value($value);
                 $setting->set_status(base_setting::LOCKED_BY_CONFIG);
             } else {
-                $controller->log('Unknown setting: ' . $setting, BACKUP::LOG_DEBUG);
+                $controller->log('Unknown setting: ' . $settingname, BACKUP::LOG_DEBUG);
             }
         }
     }
@@ -678,7 +678,7 @@ abstract class backup_controller_dbops extends backup_dbops {
                     }
                 }
             } else {
-                $controller->log('Unknown setting: ' . $setting, BACKUP::LOG_DEBUG);
+                $controller->log('Unknown setting: ' . $settingname, BACKUP::LOG_DEBUG);
             }
         }
     }
