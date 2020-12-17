@@ -232,7 +232,7 @@ if ($editform->is_cancelled()) {
             $newgroup = new stdClass();
             $newgroup->courseid = $data->courseid;
             $newgroup->name     = $group['name'];
-            $newgroup->enablemessaging = $data->enablemessaging;
+            $newgroup->enablemessaging = isset($data->enablemessaging);
             $groupid = groups_create_group($newgroup);
             $createdgroups[] = $groupid;
             foreach($group['members'] as $user) {
