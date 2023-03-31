@@ -34,7 +34,7 @@ defined('MOODLE_INTERNAL') || die();
  */
 class media_vimeo_plugin extends core_media_player_external {
     protected function embed_external(moodle_url $url, $name, $width, $height, $options) {
-        $videoid = $this->get_video_id();
+        $videourl = $this->get_video_player_url();
         $info = s($name);
 
         // Note: resizing via url is not supported, user can click the fullscreen
@@ -44,13 +44,17 @@ class media_vimeo_plugin extends core_media_player_external {
 
         $output = <<<OET
 <span class="mediaplugin mediaplugin_vimeo">
-<iframe title="$info" src="https://player.vimeo.com/video/$videoid"
+<iframe title="$info" src="$videourl"
   width="$width" height="$height" frameborder="0"
   webkitallowfullscreen mozallowfullscreen allowfullscreen></iframe>
 </span>
 OET;
 
         return $output;
+    }
+
+    public function get_video_player_url(): string {
+        return "https://player.vimeo.com/video/{$this->get_video_id()}";
     }
 
     /**

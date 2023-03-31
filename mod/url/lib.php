@@ -280,6 +280,15 @@ function url_export_contents($cm, $baseurl) {
         return [];
     }
 
+    $plugins = \core\plugininfo\media::get_enabled_plugins();
+    if (array_key_exists('vimeo', $plugins)) {
+        $media_vimeo_plugin = new media_vimeo_plugin();
+        $moodleurl = new moodle_url($fullurl);
+        if ($media_vimeo_plugin->list_supported_urls([$moodleurl])) {
+            $fullurl = $media_vimeo_plugin->get_video_player_url();
+        }
+    }
+
     $url = array();
     $url['type'] = 'url';
     $url['filename']     = clean_param(format_string($urlrecord->name), PARAM_FILE);
