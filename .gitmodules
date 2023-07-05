@@ -1,3 +1,6 @@
 [submodule "mod/vpl"]
 	path = mod/vpl
 	url = git@github.com:jcrodriguez-dis/moodle-mod_vpl.git
+[submodule "mod/quiz/report/bkt"]
+	path = mod/quiz/report/bkt
+	url = git@github.com:kristian-94/moodle-quiz_bkt.git
