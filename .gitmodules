@@ -1,0 +1,3 @@
+[submodule "mod/vpl"]
+	path = mod/vpl
+	url = git@github.com:jcrodriguez-dis/moodle-mod_vpl.git
