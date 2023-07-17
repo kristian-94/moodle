@@ -7,3 +7,6 @@
 [submodule "mod/bktquiz"]
 	path = mod/bktquiz
 	url = git@github.com:kristian-94/moodle-mod_bktquiz.git
+[submodule "mod/adaptivequiz"]
+	path = mod/adaptivequiz
+	url = git@github.com:vtos/moodle-mod_adaptivequiz.git
