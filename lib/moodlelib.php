@@ -1318,8 +1318,9 @@ function fix_utf8($value) {
             // Shortcut.
             return $value;
         }
-        // No null bytes expected in our data, so let's remove it.
-        $value = str_replace("\0", '', $value);
+
+        // Remove null bytes or invalid Unicode sequences from value.
+        $value = str_replace(["\0", "\xef\xbf\xbe", "\xef\xbf\xbf"], '', $value);
 
         // Note: this duplicates min_fix_utf8() intentionally.
         static $buggyiconv = null;
@@ -2746,7 +2747,7 @@ function require_login($courseorid = null, $autologinguest = true, $cm = null, $
 
     // If the user is not even logged in yet then make sure they are.
     if (!isloggedin()) {
-        if ($autologinguest and !empty($CFG->guestloginbutton) and !empty($CFG->autologinguests)) {
+        if ($autologinguest && !empty($CFG->autologinguests)) {
             if (!$guest = get_complete_user_data('id', $CFG->siteguest)) {
                 // Misconfigured site guest, just redirect to login page.
                 redirect(get_login_url());
@@ -5681,6 +5682,10 @@ function reset_course_userdata($data) {
             // Update calendar events for all modules.
             course_module_bulk_update_calendar_events($modname, $data->courseid);
         }
+        // Purge the course cache after resetting course start date. MDL-76936
+        if ($data->timeshift) {
+            course_modinfo::purge_course_cache($data->courseid);
+        }
     }
 
     // Mention unsupported mods.
@@ -8376,9 +8381,10 @@ function moodle_setlocale($locale='') {
  *
  * @category string
  * @param string $string The text to be searched for words. May be HTML.
+ * @param int|null $format
  * @return int The count of words in the specified string
  */
-function count_words($string) {
+function count_words($string, $format = null) {
     // Before stripping tags, add a space after the close tag of anything that is not obviously inline.
     // Also, br is a special case because it definitely delimits a word, but has no close tag.
     $string = preg_replace('~
@@ -8395,6 +8401,11 @@ function count_words($string) {
                 <br> | <br\s*/>                 # Special cases that are not close tags.
             )
             ~x', '$1 ', $string); // Add a space after the close tag.
+    if ($format !== null && $format != FORMAT_PLAIN) {
+        // Match the usual text cleaning before display.
+        // Ideally we should apply multilang filter only here, other filters might add extra text.
+        $string = format_text($string, $format, ['filter' => false, 'noclean' => false, 'para' => false]);
+    }
     // Now remove HTML tags.
     $string = strip_tags($string);
     // Decode HTML entities.
@@ -8416,9 +8427,15 @@ function count_words($string) {
  *
  * @category string
  * @param string $string The text to be searched for letters. May be HTML.
+ * @param int|null $format
  * @return int The count of letters in the specified text.
  */
-function count_letters($string) {
+function count_letters($string, $format = null) {
+    if ($format !== null && $format != FORMAT_PLAIN) {
+        // Match the usual text cleaning before display.
+        // Ideally we should apply multilang filter only here, other filters might add extra text.
+        $string = format_text($string, $format, ['filter' => false, 'noclean' => false, 'para' => false]);
+    }
     $string = strip_tags($string); // Tags are out now.
     $string = html_entity_decode($string, ENT_COMPAT);
     $string = preg_replace('/[[:space:]]*/', '', $string); // Whitespace are out now.
@@ -9045,11 +9062,12 @@ function make_unique_id_code($extra = '') {
  *
  * @param string $addr    The address you are checking
  * @param string $subnetstr    The string of subnet addresses
+ * @param bool $checkallzeros    The state to whether check for 0.0.0.0
  * @return bool
  */
-function address_in_subnet($addr, $subnetstr) {
+function address_in_subnet($addr, $subnetstr, $checkallzeros = false) {
 
-    if ($addr == '0.0.0.0') {
+    if ($addr == '0.0.0.0' && !$checkallzeros) {
         return false;
     }
     $subnets = explode(',', $subnetstr);
@@ -10225,23 +10243,12 @@ function is_proxybypass( $url ) {
     // Get the possible bypass hosts into an array.
     $matches = explode( ',', $CFG->proxybypass );
 
-    // Check for a match.
-    // (IPs need to match the left hand side and hosts the right of the url,
-    // but we can recklessly check both as there can't be a false +ve).
-    foreach ($matches as $match) {
-        $match = trim($match);
+    // Check for a exact match on the IP or in the domains.
+    $isdomaininallowedlist = \core\ip_utils::is_domain_in_allowed_list($host, $matches);
+    $isipinsubnetlist = \core\ip_utils::is_ip_in_subnet_list($host, $CFG->proxybypass, ',');
 
-        // Try for IP match (Left side).
-        $lhs = substr($host, 0, strlen($match));
-        if (strcasecmp($match, $lhs)==0) {
-            return true;
-        }
-
-        // Try for host match (Right side).
-        $rhs = substr($host, -strlen($match));
-        if (strcasecmp($match, $rhs)==0) {
-            return true;
-        }
+    if ($isdomaininallowedlist || $isipinsubnetlist) {
+        return true;
     }
 
     // Nothing matched.
