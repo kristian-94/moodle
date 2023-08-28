@@ -10,3 +10,6 @@
 [submodule "mod/adaptivequiz"]
 	path = mod/adaptivequiz
 	url = git@github.com:vtos/moodle-mod_adaptivequiz.git
+[submodule "question/type/vplquestion"]
+	path = question/type/vplquestion
+	url = https://gricad-gitlab.univ-grenoble-alpes.fr/moodle-plugins/moodle-qtype_vplquestion.git
