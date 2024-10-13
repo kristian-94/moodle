@@ -40,5 +40,5 @@ $context = \context_helper::instance_by_id($contextid);
 $PAGE->set_context($context);
 
 $USER->editing = $setmode;
-
+// hello there
 redirect($pageurl);
