@@ -39,6 +39,7 @@ require_login();
 $context = \context_helper::instance_by_id($contextid);
 $PAGE->set_context($context);
 
+// dean was here
 $USER->editing = $setmode;
 
 redirect($pageurl);
